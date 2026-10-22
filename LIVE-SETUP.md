@@ -1,29 +1,46 @@
-# Make the IT Payment Tracker live
+# Secure live setup
 
-The current `index.html` is a local-only version. This setup file prepares the database structure for a shared version, but the live app still needs to be connected to a cloud project and deployed to an account you control.
+The GitHub Pages site is public. This version of the app uses Supabase email/password sign-in and a shared PostgreSQL database. The database controls Master and User access with Row Level Security. The GitHub Pages site will not work with accounts or shared data until a Supabase project is connected.
 
-## What is required
+## Roles
 
-- A Supabase account and project for the PostgreSQL database and email sign-in.
-- A static hosting account such as Netlify or Vercel for the web page.
-- Approval from your IT/Finance team to put vendor, invoice, and payment reference data in that cloud service.
+- **Master** can view and edit invoices, delete invoices, and change other users between Master and User.
+- **User** can view and add/edit invoices, but cannot delete them or change roles.
+- Public sign-up is disabled. Every account must be invited from Supabase Authentication. New invitations receive the User role automatically.
+- A Master role must be granted by the project owner in the database. A user cannot assign the Master role to their own account.
 
-Free tiers have limits and can change. Check current plan limits before adopting this for business records. See [Supabase pricing](https://supabase.com/pricing).
+## Configure Supabase
 
-## Database setup
+1. Create a Supabase project in a region approved by your organization.
+2. Open **SQL Editor**, paste and run `supabase-schema.sql`.
+3. In **Authentication > Providers**, enable Email. Disable public sign-ups. Invite your own account first.
+4. In **Table Editor > it_user_roles**, find your invited email and change its role to `master` (or use the SQL below). The trigger creates a `user` row automatically when an account is invited.
+5. Invite other staff from **Authentication > Users**. They sign in with the **User** option. The Master can promote or demote another account in the app's User access panel.
+6. In **Authentication > URL Configuration**, set the Site URL to `https://nizzzu666.github.io/it-payment-tracker/` and add that exact URL to the Redirect URLs allow-list for password resets.
+7. In **Project Settings > API**, copy the Project URL and publishable key (older projects may call it the `anon` key) into `config.js`.
 
-1. Create a Supabase project in the organization-approved region.
-2. Open **SQL Editor**, paste the contents of `supabase-schema.sql`, and run it.
-3. In **Authentication** settings, turn off public sign-ups. Invite only the people who should use the tracker.
-4. In **Project Connect** or **API Keys**, copy the project URL and the publishable key (older projects may label this the `anon` key).
-5. Never place a `service_role` key or secret key in the browser app. The database policies are designed for a signed-in user and a publishable key.
+To grant the initial Master role in SQL, replace the example address with the invited account's email:
 
-The supplied SQL lets authenticated users share the same register. All authenticated users can read and update records; only invited users should be able to sign in. If access needs to be limited by department, we should add department or user-specific policies before launch.
+```sql
+update public.it_user_roles
+set role = 'master'
+where lower(email) = lower('your-work-email@example.com');
+```
 
-## Hosting
+Never put a `service_role` key or secret key in `config.js` or any browser code. A publishable/anon key is intended for browser use only when RLS is enabled and the policies are applied.
 
-The current local page has not yet been connected to Supabase. The next code step is to add a sign-in screen and replace browser-only storage with authenticated database reads and writes. Then deploy the resulting static files through your hosting account. A hosting URL alone does not secure the data; the database policies and restricted user access are essential.
+## Deploy
 
-## Local backup
+After setting `config.js`, commit and push the changes to the `main` branch. GitHub Pages will rebuild the site. Verify sign-in and each role before entering real invoices.
 
-Keep using **Backup data** / **Export CSV** in the current local tracker until the connected live version has been deployed and verified. Do not enter real business records into a public demo or share project secrets in chat.
+## Password and account controls
+
+Use unique passwords. Configure Supabase Auth to require email confirmation for invited accounts and its strongest available password policy, including leaked-password protection where available. Password reset links should be sent only to the account's verified email. Keep the GitHub repository public because it hosts the page; it must contain no private database keys or real payment records.
+
+This version does not require authenticator MFA, per your request. Supabase Auth supports adding TOTP MFA later.
+
+## Data and backup
+
+Payment records are stored in the shared Supabase database, not in browser local storage. **Backup data** downloads a JSON copy and **Export CSV** creates a spreadsheet-ready copy. Store backups only in an approved company location.
+
+Confirm with your IT/Finance team that the selected cloud service and region are approved before entering vendor invoices or UTR references. Free-plan limits and terms can change; see [Supabase pricing](https://supabase.com/pricing).
