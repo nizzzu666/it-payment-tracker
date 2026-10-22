@@ -1,7 +1,6 @@
-// Add your Supabase project URL and publishable key here.
-// A publishable/anon key can be present in a browser app only when RLS is
-// enabled and correctly configured. Never put a service_role/secret key here.
+// Public Supabase browser configuration. Security is enforced by database RLS.
+// Never place a service_role key or any secret in this file.
 window.IT_PAYMENT_CONFIG = {
-  supabaseUrl: "",
-  supabasePublishableKey: ""
+  supabaseUrl: "https://yqanogmxtjmdfdsibewi.supabase.co",
+  supabasePublishableKey: "sb_publishable_YYjpnFVUDF_umqDLLYPjLA_XLFcloLl"
 };
