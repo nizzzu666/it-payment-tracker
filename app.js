@@ -15,6 +15,7 @@
   function toast(message) { const t=$('toast'); t.textContent=message; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800); }
   function showError(message) { $('authError').textContent=message; }
   function lockPage(message) { $('authNotice').textContent=message; $('authNotice').classList.add('show'); $('loginBtn').disabled=true; $('resetPasswordBtn').disabled=true; }
+  function isMissingActiveField(error) { return error?.code==='42703'||error?.code==='PGRST204'||/active.*column|column.*active/i.test(error?.message||''); }
   function parseRow(row) { return {id:row.id,vendor:row.vendor,po:row.po,invoice:row.invoice,amount:Number(row.amount),invoiceDate:row.invoice_date||'',dueDate:row.due_date||'',status:row.status,utr:row.utr||'',paymentDate:row.payment_date||'',notes:row.notes||'',createdBy:row.created_by}; }
   function dbRow(d) { return {vendor:d.vendor,po:d.po,invoice:d.invoice,amount:Number(d.amount),invoice_date:d.invoiceDate||null,due_date:d.dueDate||null,status:d.status,utr:d.utr||null,payment_date:d.paymentDate||null,notes:d.notes||null}; }
   function overdue(r) { return r.status !== 'Paid' && r.dueDate && r.dueDate < today(); }
@@ -68,9 +69,16 @@
   }
 
   async function getAssignedRole(user) {
-    const {data,error}=await db.from('it_user_roles').select('role').eq('user_id',user.id).maybeSingle();
+    const {data,error}=await db.from('it_user_roles').select('role,active').eq('user_id',user.id).maybeSingle();
+    if(error&&isMissingActiveField(error)){
+      const legacy=await db.from('it_user_roles').select('role').eq('user_id',user.id).maybeSingle();
+      if(legacy.error)throw legacy.error;
+      if(!legacy.data)throw new Error('This account has not been assigned a tracker role. Ask the Master to invite and configure your account.');
+      return legacy.data.role;
+    }
     if(error) throw error;
     if(!data) throw new Error('This account has not been assigned a tracker role. Ask the Master to invite and configure your account.');
+    if(!data.active) throw new Error('This account has been deactivated. Contact an active Master for access.');
     return data.role;
   }
   async function verifyRole(user, requiredRole) {
@@ -135,8 +143,19 @@
   function parseCSV(s){let rows=[],row=[],val='',quoted=false;for(let i=0;i<s.length;i++){const c=s[i];if(quoted){if(c==='"'&&s[i+1]==='"'){val+='"';i++;}else if(c==='"')quoted=false;else val+=c;}else if(c==='"')quoted=true;else if(c===','){row.push(val);val='';}else if(c==='\n'){row.push(val.replace(/\r$/,''));if(row.some(x=>x.trim()))rows.push(row);row=[];val='';}else val+=c;}row.push(val.replace(/\r$/,''));if(row.some(x=>x.trim()))rows.push(row);return rows;}
   $('runImport').addEventListener('click',async()=>{const rows=parseCSV($('csvText').value);if(rows.length<2){toast('Paste a header row and at least one record');return;}const headers=rows.shift().map(x=>x.trim().toLowerCase()),required=['vendor','po','invoice','amount'];if(required.some(k=>!headers.includes(k))){alert('Required headers are vendor, po, invoice, and amount.');return;}const payload=[];for(const cells of rows){const x=Object.fromEntries(headers.map((h,i)=>[h,(cells[i]||'').trim()]));if(!x.vendor||!x.po||!x.invoice||!Number(x.amount))continue;payload.push({...dbRow({vendor:x.vendor,po:x.po,invoice:x.invoice,amount:x.amount,invoiceDate:x.invoicedate||'',dueDate:x.duedate||'',status:x.status||'Pending',utr:x.utr||'',paymentDate:x.paymentdate||'',notes:x.notes||''}),created_by:currentUser.id});}if(!payload.length){toast('No valid invoice rows found');return;}const {error}=await db.from('it_payments').insert(payload);if(error){toast(`Import failed: ${error.message}`);return;}await fetchRecords();$('importModal').classList.remove('show');$('csvText').value='';toast(`${payload.length} invoice${payload.length===1?'':'s'} imported`);});
 
-  async function fetchUsers(){const {data,error}=await db.from('it_user_roles').select('user_id,email,role').order('email');if(error)throw error;$('userRows').innerHTML=(data||[]).map(u=>`<tr><td>${esc(u.email)}</td><td><select data-user-role="${esc(u.user_id)}" ${u.user_id===currentUser.id?'disabled':''}><option value="user" ${u.role==='user'?'selected':''}>User</option><option value="master" ${u.role==='master'?'selected':''}>Master</option></select></td><td>${u.user_id===currentUser.id?'Current account':`<button class="icon-btn" data-save-role="${esc(u.user_id)}">Save role</button>`}</td></tr>`).join('');}
-  $('userRows').addEventListener('click',async e=>{const b=e.target.closest('[data-save-role]');if(!b)return;const id=b.dataset.saveRole,select=document.querySelector(`[data-user-role="${CSS.escape(id)}"]`);if(!select||id===currentUser.id)return;const {error}=await db.from('it_user_roles').update({role:select.value}).eq('user_id',id);if(error)toast(`Role update failed: ${error.message}`);else{toast('User role updated');await fetchUsers();}});
+  async function fetchUsers(){const {data,error}=await db.from('it_user_roles').select('user_id,email,role,active').order('email');if(error){if(isMissingActiveField(error)){$('userRows').innerHTML='<tr><td colspan="4">Account controls are waiting for the database migration. Ask the project owner to run supabase-deactivate-users.sql in Supabase SQL Editor.</td></tr>';return;}throw error;}$('userRows').innerHTML=(data||[]).map(u=>`<tr><td>${esc(u.email)}</td><td><select data-user-role="${esc(u.user_id)}" ${u.user_id===currentUser.id?'disabled':''}><option value="user" ${u.role==='user'?'selected':''}>User</option><option value="master" ${u.role==='master'?'selected':''}>Master</option></select></td><td><span class="badge ${u.active?'paid':'pending'}">${u.active?'Active':'Deactivated'}</span></td><td>${u.user_id===currentUser.id?'Current account':`<div class="row-actions"><button class="icon-btn" data-save-role="${esc(u.user_id)}">Save role</button><button class="icon-btn ${u.active?'danger':''}" data-toggle-active="${esc(u.user_id)}" data-next-active="${u.active?'false':'true'}">${u.active?'Deactivate':'Reactivate'}</button></div>`}</td></tr>`).join('');}
+  $('userRows').addEventListener('click',async e=>{
+    const roleButton=e.target.closest('[data-save-role]');
+    if(roleButton){const id=roleButton.dataset.saveRole,select=document.querySelector(`[data-user-role="${CSS.escape(id)}"]`);if(!select||id===currentUser.id)return;const {error}=await db.from('it_user_roles').update({role:select.value}).eq('user_id',id);if(error)toast(`Role update failed: ${error.message}`);else{toast('User role updated');await fetchUsers();}return;}
+    const statusButton=e.target.closest('[data-toggle-active]');
+    if(!statusButton)return;
+    const id=statusButton.dataset.toggleActive,activate=statusButton.dataset.nextActive==='true';
+    if(id===currentUser.id)return;
+    const account=(await db.from('it_user_roles').select('email').eq('user_id',id).maybeSingle()).data;
+    if(!activate&&account&&!confirm(`Deactivate ${account.email}? They will lose access to the tracker.`))return;
+    const {error}=await db.rpc('set_it_user_active',{target_user_id:id,should_be_active:activate});
+    if(error)toast(`Account status update failed: ${error.message}`);else{toast(activate?'User account reactivated':'User account deactivated');await fetchUsers();}
+  });
 
   async function restoreSession(){
     if(!cfg.supabaseUrl||!cfg.supabasePublishableKey){$('welcomePage').hidden=true;$('loginPage').hidden=false;lockPage('Secure sign-in is not connected yet. The tracker administrator must configure the database before anyone can sign in.');return;}

@@ -4,7 +4,7 @@ The GitHub Pages site is public. This version of the app uses Supabase email/pas
 
 ## Roles
 
-- **Master** can view and edit invoices, delete invoices, and change other users between Master and User.
+- **Master** can view and edit invoices, delete invoices, change other users between Master and User, and deactivate or reactivate other tracker accounts.
 - **User** can view and add/edit invoices, but cannot delete them or change roles.
 - Public sign-up is disabled. Every account must be invited from Supabase Authentication. New invitations receive the User role automatically.
 - A Master role must be granted by the project owner in the database. A user cannot assign the Master role to their own account.
@@ -28,6 +28,10 @@ where lower(email) = lower('your-work-email@example.com');
 ```
 
 Never put a `service_role` key or secret key in `config.js` or any browser code. A publishable/anon key is intended for browser use only when RLS is enabled and the policies are applied.
+
+## Deactivate a tracker account
+
+For the existing live database, run `supabase-deactivate-users.sql` in **SQL Editor** before publishing the matching app update. In the app, an active Master can deactivate or reactivate other accounts in **User access**. Deactivated accounts cannot open tracker data. The current account and the last active Master are protected from deactivation. Account creation remains in **Authentication > Users > Add user > Send invitation**; the app panel assigns roles and controls active status.
 
 ## Deploy
 

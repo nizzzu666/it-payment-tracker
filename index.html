@@ -36,14 +36,14 @@
   <section class="panel"><div class="panel-head"><div><h2>Invoice register</h2><div class="sub">Select a vendor to see their pending, paid, and overdue totals and invoice details.</div></div><div class="filters"><select id="vendorFilter" aria-label="Filter by vendor"><option value="">All vendors</option></select><input class="search" id="search" placeholder="Search PO, invoice, or UTR…" aria-label="Search records"><select id="statusFilter" aria-label="Filter by status"><option value="">All statuses</option><option>Pending</option><option>Partially Paid</option><option>Paid</option><option>Overdue</option></select><button class="btn" id="clearFilters">Clear</button></div></div>
     <div class="table-wrap"><table><thead><tr><th>Vendor</th><th>PO number</th><th>Invoice</th><th>Invoice date</th><th>Due date</th><th>Amount</th><th>Status</th><th>UTR</th><th>Payment date</th><th>Action</th></tr></thead><tbody id="rows"></tbody></table><div class="empty" id="emptyState">No invoices yet. Add the first invoice above to start tracking.</div></div><div class="table-foot"><span id="visibleCount">0 records</span><span>Overdue means past due date and not marked Paid.</span></div>
   </section>
-  <section class="panel" id="userAccessPanel" hidden><div class="panel-head"><div><h2>User access</h2><div class="sub">Invite accounts in Supabase Authentication. New invited accounts start as User; the Master can change other users' roles here.</div></div></div><div class="table-wrap"><table><thead><tr><th>Email</th><th>Role</th><th>Action</th></tr></thead><tbody id="userRows"></tbody></table></div></section>
+  <section class="panel" id="userAccessPanel" hidden><div class="panel-head"><div><h2>User access</h2><div class="sub">Invite accounts in Supabase Authentication. Masters can assign roles and deactivate or reactivate other accounts. At least one active Master is always kept.</div></div></div><div class="table-wrap"><table><thead><tr><th>Email</th><th>Role</th><th>Account status</th><th>Action</th></tr></thead><tbody id="userRows"></tbody></table></div></section>
   <div class="notice"><span>ⓘ</span><span><strong>Shared tracker:</strong> payment data is stored in the secured database. Use <em>Backup data</em> regularly to download a copy.</span></div>
 </main>
 <div class="toast" id="toast" role="status"></div>
 <div class="modal-backdrop" id="importModal"><div class="modal"><h2>Import from Excel / CSV</h2><p>To bring existing records in, paste CSV text below. Use these column headers (any order): vendor, po, invoice, amount, invoiceDate, dueDate, status, utr, paymentDate, notes. Dates should be YYYY-MM-DD.</p><textarea id="csvText" placeholder="vendor,po,invoice,amount,invoiceDate,dueDate,status,utr,paymentDate,notes"></textarea><div class="modal-actions"><button class="btn" id="closeImport">Cancel</button><button class="btn primary" id="runImport">Import rows</button></div></div></div>
 <script src="./config.js?v=4619cb5"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./app.js?v=enter-screen"></script>
+<script src="./app.js?v=account-controls-1"></script>
 
 </body>
 </html>
