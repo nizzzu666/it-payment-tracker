@@ -61,10 +61,10 @@
   async function openApp(user, role) {
     currentUser=user; activeRole=role;
     $('userBadge').textContent=`${user.email} · ${roleLabel(role)}`;
-    $('loginPage').hidden=true; $('appShell').hidden=false;
+    $('welcomePage').hidden=true; $('loginPage').hidden=true; $('appShell').hidden=false;
     $('userAccessPanel').hidden=role!=='master';
     try { await fetchRecords(); if(role==='master') await fetchUsers(); }
-    catch(error) { await db.auth.signOut();currentUser=null;activeRole=null;$('appShell').hidden=true;$('loginPage').hidden=false;showError('Could not load tracker data. Check the database setup or contact the tracker Master.'); }
+    catch(error) { await db.auth.signOut();currentUser=null;activeRole=null;$('appShell').hidden=true;$('welcomePage').hidden=true;$('loginPage').hidden=false;showError('Could not load tracker data. Check the database setup or contact the tracker Master.'); }
   }
 
   async function getAssignedRole(user) {
@@ -88,6 +88,8 @@
     catch(err){await db.auth.signOut();showError(err.message||'This account cannot access the tracker.');}
     $('loginBtn').disabled=false;
   });
+  $('enterBtn').addEventListener('click',()=>{$('welcomePage').hidden=true;$('loginPage').hidden=false;$('loginEmail').focus();});
+  $('backBtn').addEventListener('click',()=>{$('loginPage').hidden=true;$('welcomePage').hidden=false;showError('');});
   $('resetPasswordBtn').addEventListener('click',async()=>{
     showError('');const email=$('loginEmail').value.trim();
     if(!email){showError('Enter your email address first.');return;}
@@ -102,7 +104,7 @@
     if(error){$('passwordError').textContent='The password could not be updated. Request a new reset link and try again.';return;}
     await db.auth.signOut();history.replaceState(null,'',window.location.pathname);$('newPasswordForm').hidden=true;$('loginForm').hidden=false;$('newPasswordForm').reset();showError('Password updated. Sign in with your new password.');
   });
-  $('signOutBtn').addEventListener('click',async()=>{await db.auth.signOut();currentUser=null;activeRole=null;records=[];$('appShell').hidden=true;$('loginPage').hidden=false;form.reset();showError('');});
+  $('signOutBtn').addEventListener('click',async()=>{await db.auth.signOut();currentUser=null;activeRole=null;records=[];$('appShell').hidden=true;$('loginPage').hidden=true;$('welcomePage').hidden=false;form.reset();showError('');});
 
   form.addEventListener('submit',async e=>{
     e.preventDefault();const d=Object.fromEntries(new FormData(form).entries());d.amount=Number(d.amount);d.vendor=d.vendor.trim();d.po=d.po.trim();d.invoice=d.invoice.trim();
@@ -137,13 +139,13 @@
   $('userRows').addEventListener('click',async e=>{const b=e.target.closest('[data-save-role]');if(!b)return;const id=b.dataset.saveRole,select=document.querySelector(`[data-user-role="${CSS.escape(id)}"]`);if(!select||id===currentUser.id)return;const {error}=await db.from('it_user_roles').update({role:select.value}).eq('user_id',id);if(error)toast(`Role update failed: ${error.message}`);else{toast('User role updated');await fetchUsers();}});
 
   async function restoreSession(){
-    if(!cfg.supabaseUrl||!cfg.supabasePublishableKey){lockPage('Secure sign-in is not connected yet. The tracker administrator must configure the database before anyone can sign in.');return;}
-    if(!window.supabase?.createClient){lockPage('The sign-in service could not load. Refresh the page or contact the tracker administrator.');return;}
+    if(!cfg.supabaseUrl||!cfg.supabasePublishableKey){$('welcomePage').hidden=true;$('loginPage').hidden=false;lockPage('Secure sign-in is not connected yet. The tracker administrator must configure the database before anyone can sign in.');return;}
+    if(!window.supabase?.createClient){$('welcomePage').hidden=true;$('loginPage').hidden=false;lockPage('The sign-in service could not load. Refresh the page or contact the tracker administrator.');return;}
     const authFlow=new URLSearchParams(window.location.hash.slice(1)).get('type');
     const passwordSetupFlow=authFlow==='recovery'||authFlow==='invite';
     db=window.supabase.createClient(cfg.supabaseUrl,cfg.supabasePublishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-    db.auth.onAuthStateChange(event=>{if(event==='PASSWORD_RECOVERY'||(event==='SIGNED_IN'&&authFlow==='invite')){$('appShell').hidden=true;$('loginPage').hidden=false;$('loginForm').hidden=true;$('newPasswordForm').hidden=false;$('authError').textContent='';}});
-    if(passwordSetupFlow){$('loginForm').hidden=true;$('newPasswordForm').hidden=false;return;}
+    db.auth.onAuthStateChange(event=>{if(event==='PASSWORD_RECOVERY'||(event==='SIGNED_IN'&&authFlow==='invite')){$('appShell').hidden=true;$('welcomePage').hidden=true;$('loginPage').hidden=false;$('loginForm').hidden=true;$('newPasswordForm').hidden=false;$('authError').textContent='';}});
+    if(passwordSetupFlow){$('welcomePage').hidden=true;$('loginPage').hidden=false;$('loginForm').hidden=true;$('newPasswordForm').hidden=false;return;}
     const {data,error}=await db.auth.getSession();if(error)return;
     if(data.session){try{const role=await getAssignedRole(data.session.user);await openApp(data.session.user,role);}catch{await db.auth.signOut();}}
   }
